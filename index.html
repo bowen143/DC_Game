@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distribution Center Simulator</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid #333;
+        }
+        #instructions {
+            max-width: 400px;
+            margin: 20px auto;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Distribution Center Simulator</h1>
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="instructions">
+            <h3>How to Play:</h3>
+            <ul>
+                <li>Use arrow keys to move the green worker.</li>
+                <li>Collect the oldest box (darkest red) and deliver it to the grey truck in the bottom-right corner.</li>
+                <li>You can only pick up the oldest box.</li>
+                <li>Boxes get darker as they wait longer.</li>
+                <li>Score 10 points for instant delivery, lose 1 point per second of wait time.</li>
+                <li>The game lasts 30 seconds. Try to score as high as possible!</li>
+            </ul>
+        </div>
+        <p>Score: <span id="score">0</span></p>
+        <p>Time Left: <span id="timer">30</span> seconds</p>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const timerElement = document.getElementById('timer');
+
+        const tileSize = 40;
+        const gridSize = 10;
+
+        let player = { x: 0, y: 0, hasBox: false };
+        let boxes = [];
+        let score = 0;
+        let timeLeft = 30;
+
+        const truck = { x: 9, y: 9 };
+
+        function drawPlayer() {
+            ctx.fillStyle = player.hasBox ? 'blue' : 'green';
+            ctx.fillRect(player.x * tileSize, player.y * tileSize, tileSize, tileSize);
+        }
+
+        function drawBoxes() {
+            boxes.forEach(box => {
+                // Color-code boxes based on wait time
+                const red = Math.max(100, Math.min(255, 100 + box.waitTime * 10));
+                ctx.fillStyle = `rgb(${red}, 0, 0)`;
+                ctx.fillRect(box.x * tileSize, box.y * tileSize, tileSize, tileSize);
+
+                // Draw wait time above the box
+                ctx.fillStyle = 'black';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(box.waitTime, (box.x + 0.5) * tileSize, box.y * tileSize - 5);
+            });
+        }
+
+        function drawTruck() {
+            ctx.fillStyle = 'grey';
+            ctx.fillRect(truck.x * tileSize, truck.y * tileSize, tileSize, tileSize);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBoxes();
+            drawTruck();
+            drawPlayer();
+        }
+
+        function movePlayer(dx, dy) {
+            const newX = player.x + dx;
+            const newY = player.y + dy;
+
+            if (newX >= 0 && newX < gridSize && newY >= 0 && newY < gridSize) {
+                player.x = newX;
+                player.y = newY;
+
+                if (!player.hasBox) {
+                    const oldestBox = boxes.reduce((oldest, current) => 
+                        current.waitTime > oldest.waitTime ? current : oldest, boxes[0]);
+                    if (oldestBox && player.x === oldestBox.x && player.y === oldestBox.y) {
+                        player.hasBox = true;
+                        boxes = boxes.filter(box => box !== oldestBox);
+                    }
+                } else if (player.x === truck.x && player.y === truck.y) {
+                    player.hasBox = false;
+                    updateScore();
+                }
+
+                draw();
+            }
+        }
+
+        function spawnBox() {
+            if (boxes.length < 5) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * gridSize);
+                    y = Math.floor(Math.random() * gridSize);
+                } while (
+                    (x === player.x && y === player.y) ||
+                    (x === truck.x && y === truck.y) ||
+                    boxes.some(box => box.x === x && box.y === y)
+                );
+                boxes.push({ x, y, waitTime: 0 });
+                draw();
+            }
+        }
+
+        function updateBoxTimes() {
+            boxes.forEach(box => {
+                box.waitTime += 1; // Increase wait time by 1 second
+            });
+            draw();
+        }
+
+        function updateScore() {
+            const deliveryTime = player.hasBox ? 0 : boxes[boxes.length - 1].waitTime;
+            const pointsEarned = Math.max(10 - deliveryTime, 0);
+            score += pointsEarned;
+            scoreElement.textContent = score;
+        }
+
+        function updateTimer() {
+            timeLeft--;
+            timerElement.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            clearInterval(gameLoop);
+            clearInterval(timerLoop);
+            alert(`Game Over! Your final score is ${score}`);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp': movePlayer(0, -1); break;
+                case 'ArrowDown': movePlayer(0, 1); break;
+                case 'ArrowLeft': movePlayer(-1, 0); break;
+                case 'ArrowRight': movePlayer(1, 0); break;
+            }
+        });
+
+        const gameLoop = setInterval(() => {
+            spawnBox();
+            updateBoxTimes();
+        }, 1000);
+
+        const timerLoop = setInterval(updateTimer, 1000);
+
+        draw();
+    </script>
+</body>
+</html>
